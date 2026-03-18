@@ -25,24 +25,6 @@ ASTRA follows a different paradigm:
 - Inject **graph structure via R-GCN**
 - Learn **non-linear alignment**
 
----
-
-# Pipeline Overview
-
-```text
-1. Load pretrained embeddings (KG1, KG2)
-2. Load triples (txt / parquet)
-3. Build merged graph
-4. Compute RGCN embeddings
-5. Fuse embeddings
-6. Train alignment model
-7. Evaluate entity alignment
-8. Inject aligned embeddings into KGE
-9. Fine-tune using sampled triples
-10. Evaluate link prediction
-```
----
-
 
 ## Code and Data
 
@@ -59,6 +41,7 @@ configuration.json
 
 Datasets:
 [OpenEA benchmark](https://www.dropbox.com/scl/fi/lo69wjm1f37qiik59kmg8/OpenEA_dataset_v1.1.zip)
+
 [Zenodo – DBpedia-Wikidata](https://zenodo.org/records/7566020)
 
 
@@ -109,13 +92,6 @@ pip install -r requirements.txt
    * OpenEA benchmark datasets
    * DBpedia–Wikidata datasets
 
-3. **Install dependencies**
-
-```bash
-pip install -r requirements.txt
-```
-
----
 
 ### Run Pipeline
 
@@ -166,11 +142,3 @@ output_dir/
 ├── fine_tuned_model/          # final fine-tuned KGE model
 ```
 
----
-
-##  Notes
-
-* No KG merging required
-* No KGE retraining required
-* Sampling is **random and dynamic**
-* Works with multiple KGE models
