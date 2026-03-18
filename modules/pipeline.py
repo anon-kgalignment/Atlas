@@ -4,21 +4,11 @@ import torch
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-# === DICEE imports ===
-from dicee.static_funcs import get_er_vocab, get_re_vocab
-from dicee import KGE, intialize_model
-
-# === Evaluation modules ===
-from modules.eval.link_prediction import run_link_prediction_evaluation
-#from modules.eval.Entity_alignment import run_entity_alignment_evaluation
-
 # === Model and training ===
 from modules.models.train import train_alignment_model 
-from modules.models.fusion import USE_DST_ONLY, USE_NEURO_SYMBOLIC
 
 # === Graph utilities ===
-from modules.graph.build import build_graph_indexes
-from modules.graph.build import apply_neighborhood_smoothing
+#from modules.graph.build import build_graph_indexes
 
 
 # === Data loader ===
@@ -29,11 +19,11 @@ from modules.data_loader import (
     remove_brackets_from_indices,
     build_alignment_dict,
     clean_dict,
-    create_train_test_matrices,
-    normalize_and_scale,
+    #create_train_test_matrices,
+    #normalize_and_scale,
     load_triples_from_files,
     load_triples,
-    load_alignment_links, create_train_val_test_matrices_from_links, normalize_embedding_space,  load_parquet_triples
+    load_alignment_links, create_train_val_test_matrices_from_links, load_parquet_triples
 )
 
 
@@ -61,16 +51,13 @@ def run_pipeline_for_ckeci(
     print(f"\n[Loading KG1 triples from {args.train_triples_path_1}]")
     triples_1 = load_triples(args.train_triples_path_1)
     print(f" KG1 triples loaded: {len(triples_1)} triples (first 3): {triples_1[:3]}")
-    G1 = build_graph_indexes(triples_1)
+    #G1 = build_graph_indexes(triples_1)
 
     
     triples_2 = load_triples(args.train_triples_path_2)
     print(f" KG2 triples loaded: {len(triples_2)} triples (first 3): {triples_2[:3]}")
-    G2 = build_graph_indexes(triples_2)
+    #G2 = build_graph_indexes(triples_2)
 
-
-    #ent1 = apply_neighborhood_smoothing(ent1, G1, alpha=0.3)
-    #ent2 = apply_neighborhood_smoothing(ent2, G2, alpha=0.3)
 
     # 3) Alignment data
     if alignment_dir is not None:
@@ -87,8 +74,6 @@ def run_pipeline_for_ckeci(
     train_links = clean_dict(dict(train_links_raw))
     val_links   = clean_dict(dict(val_links_raw))
     test_links  = clean_dict(dict(test_links_raw))
-    
-    # Convert to embedding matrices
 
 
     (S_train, T_train,
@@ -105,52 +90,35 @@ def run_pipeline_for_ckeci(
     
     merged_rel = pd.concat([rel1, rel2])
     merged_rel = merged_rel[~merged_rel.index.duplicated(keep="first")]
-    
-    merged_embeddings_full = pd.concat([ent1, ent2])
-    merged_embeddings_full = merged_embeddings_full[~merged_embeddings_full.index.duplicated(keep='first')]
-    print(f" Merged embeddings shape: {merged_embeddings_full.shape}")
-    entities_to_remove = set(train_links.values())
-    print(f" Number of entities to remove (from target side of alignment): {len(entities_to_remove)}")
+
+    #merged_embeddings_full = pd.concat([ent1, ent2])
+    #merged_embeddings_full = merged_embeddings_full[~merged_embeddings_full.index.duplicated(keep='first')]
+    #print(f" Merged embeddings shape: {merged_embeddings_full.shape}")
+    #entities_to_remove = set(train_links.values())
+    #print(f" Number of entities to remove (from target side of alignment): {len(entities_to_remove)}")
     #print(f"🔍 Sample entities to remove: {list(entities_to_remove)[:5]}")
-    final_embeddings_df = merged_embeddings_full.drop(labels=entities_to_remove, errors='ignore')
-    print(f"final_embbeddings_df shape: {final_embeddings_df.shape}")
-    sorted_merged_embeddings = final_embeddings_df.sort_index()
-    merged_embeddings_full_sorted = merged_embeddings_full.sort_index()
+    #final_embeddings_df = merged_embeddings_full.drop(labels=entities_to_remove, errors='ignore')
+    #print(f"final_embbeddings_df shape: {final_embeddings_df.shape}")
+    #sorted_merged_embeddings = final_embeddings_df.sort_index()
+    #merged_embeddings_full_sorted = merged_embeddings_full.sort_index()
     
-    merged_embeddings_normalized_without_target, _, _ = normalize_and_scale(sorted_merged_embeddings, reference_data=S_train)
-    merged_embeddings_normalized_with_target, _, _ = normalize_and_scale(merged_embeddings_full_sorted, reference_data=S_train)
+    #merged_embeddings_normalized_without_target, _, _ = normalize_and_scale(sorted_merged_embeddings, reference_data=S_train)
+    #merged_embeddings_normalized_with_target, _, _ = normalize_and_scale(merged_embeddings_full_sorted, reference_data=S_train)
 
-    #S_train_norm, _, _ = normalize_and_scale(S_train)
-    #T_train_norm, _, _ = normalize_and_scale(T_train)
-    
-    #S_train_norm, _, _ = normalize_and_scale(S_train)
-    #T_train_norm, _, _ = normalize_and_scale(T_train)
 
-        # 4) Triples (used for agents and fine-tuning)
+    # 4) Triples (used for agents and fine-tuning)
     triples_batch = load_triples_from_files(triple_paths)
-    # KG1 = English graph triples
-    kg1_train_path = "/scratch/hpc-prf-whale/duygu/alignment/data/EN_FR_DBpedia/EN_FR_15K_V1/rel_triples_train_1.parquet"
-    #kg1_train_path = "/scratch/hpc-prf-whale/duygu/alignment/data/OpenEA_dataset_v1.1/EN_DE_15K_V1/train_1.parquet"
-    kg1_triples = load_parquet_triples(kg1_train_path)
-
-    # KG2 = French graph triples
-    kg2_train_path = "/scratch/hpc-prf-whale/duygu/alignment/data/EN_FR_DBpedia/EN_FR_15K_V1/rel_triples_train_2.parquet"
-    #kg2_train_path = "/scratch/hpc-prf-whale/duygu/alignment/data/OpenEA_dataset_v1.1/EN_DE_15K_V1/train_2.parquet"
-    kg2_triples = load_parquet_triples(kg2_train_path)
-    
+    kg1_triples = load_triples_from_files([args.train_triples_path_1])
+    kg2_triples = load_triples_from_files([args.train_triples_path_2])
     triples_for_gcn = kg1_triples + kg2_triples
 
     val_triples, _ = train_test_split(triples_batch, test_size=0.01, random_state=42)
 
     final_model = train_alignment_model(
-        S_train=S_train,
-        T_train=T_train,
-        S_val=S_val, T_val=T_val,  
         input_dim=256, 
         hidden_dim=256, 
-        epochs=20, 
+        epochs=2, 
         lr=0.001, 
-        w1=0.45, w2=0.45, w3=0.07, w4=0.03,
         S_test_keys=S_test_keys,
         T_test_keys=T_test_keys,
         entity_embeddings1=ent1,
@@ -161,29 +129,16 @@ def run_pipeline_for_ckeci(
         kg_1=kg1_triples,
         kg_2=kg2_triples,
         device=device,
-        merged_embeddings_normalized_no_target=merged_embeddings_full_sorted,
-        merged_embeddings_with_target=merged_embeddings_full,
-        cleaned_alignment_dict=alignment_dict,
+        #cleaned_alignment_dict=alignment_dict,
         S_train_keys=S_train_keys,
         T_train_keys=T_train_keys,
         S_val_keys=S_val_keys,
         T_val_keys=T_val_keys,
         val_triples=val_triples,
         train_triples=triples_batch,
-        train_triples_1=triples_1,
-        train_triples_2=triples_2,
         directory_1=directory_1,
-        G1=G1,G2=G2,
         test_triples_path=args.test_triples_path
     )
-    # 7) Evaluate Entity Alignment (using test pairs)
-    #run_entity_alignment_evaluation(
-        #model_path=os.path.join(output_dir, "model.pt"),
-        #entity_to_idx_path=os.path.join(output_dir, "entity_to_idx.p"),
-       # S_test_keys=S_test_keys,
-       # T_test_keys=T_test_keys,
-        #output_dir=output_dir,
-    #)
 
 if __name__ == "__main__":
     import argparse

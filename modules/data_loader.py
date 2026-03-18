@@ -1,6 +1,5 @@
 # modules/data_loader.py
 import argparse
-import logging
 import os
 import pandas as pd
 import random
@@ -10,23 +9,40 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 import torch
 import json
+import logging
 import torch.nn.functional as F
 
-def sample_encoded_triples(triples_batch, entity_to_idx, relation_to_idx, sample_size=60000):
-    sampled_triples = random.sample(triples_batch, min(sample_size, len(triples_batch)))
-    encoded = []
-    for h, r, t in sampled_triples:
-        h_clean = clean_uri(h)
-        r_clean = clean_uri(r)
-        t_clean = clean_uri(t)
-        if h_clean in entity_to_idx and r_clean in relation_to_idx and t_clean in entity_to_idx:
-            encoded.append((entity_to_idx[h_clean], relation_to_idx[r_clean], entity_to_idx[t_clean]))
-    return encoded
 
 def load_json(p: str) -> dict:
         with open(p, 'r') as r:
             args = json.load(r)
         return args
+
+
+def sample_encoded_triples(triples_batch, entity_to_idx, relation_to_idx, sample_size=None):
+
+    if sample_size is None:
+        sample_size = len(triples_batch)
+
+    sampled_triples = random.sample(
+        triples_batch,
+        min(sample_size, len(triples_batch))
+    )
+
+    encoded = []
+    for h, r, t in sampled_triples:
+        h_clean = clean_uri(h)
+        r_clean = clean_uri(r)
+        t_clean = clean_uri(t)
+
+        if h_clean in entity_to_idx and r_clean in relation_to_idx and t_clean in entity_to_idx:
+            encoded.append((
+                entity_to_idx[h_clean],
+                relation_to_idx[r_clean],
+                entity_to_idx[t_clean]
+            ))
+
+    return encoded
 
 
 def extract_files_from_directory(directory):
@@ -248,8 +264,6 @@ def create_train_test_matrices(alignment_dict, entity_embeddings1, entity_embedd
     return S_train, T_train, S_test, T_test, S_train_keys, T_train_keys, S_test_keys, T_test_keys
 
 
-import logging
-
 def load_alignment_links(args):
     """
     Loads train/val/test link pairs from *single files*.
@@ -338,13 +352,6 @@ def create_train_val_test_matrices_from_links(train_links, val_links, test_links
         S_test_keys, T_test_keys
     )
 
-    
-def lang_counts(index):
-    idx = list(index)
-    en = sum('://dbpedia.org/resource/' in u and '://fr.dbpedia.org/' not in u for u in idx)
-    de = sum('://fr.dbpedia.org/resource/' in u for u in idx)
-    other = len(idx) - en - de
-    return en, de, other
 
 
 def normalize_and_scale(data, reference_data=None):
@@ -420,7 +427,7 @@ def load_triples_from_files(file_paths):
             else:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     for line in f:
-                        parts = line.strip().split()
+                        parts = line.strip().split('\t')
                         if len(parts) >= 3:
                             triples.append((parts[0], parts[1], parts[2]))
 

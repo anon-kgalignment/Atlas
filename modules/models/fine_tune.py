@@ -7,7 +7,7 @@ import sys, os
 from dicee import KGE, intialize_model
 import shutil
 
-from modules.data_loader import load_json, sample_encoded_triples
+from modules.data_loader import sample_encoded_triples, load_json
 from modules.eval.link_prediction import evaluate_link_prediction_performance
 from dicee.static_funcs import get_er_vocab, get_re_vocab
 
@@ -86,7 +86,6 @@ def initialize_models_and_update_embeddings(entity_embeddings, relation_embeddin
         print("Model has no q_coefficients (e.g., TransE) — skipping.")
 
 
-    # Convert to torch tensors
     entity_tensor = torch.tensor(entity_embeddings, dtype=torch.float32)
     relation_tensor = torch.tensor(relation_embeddings, dtype=torch.float32)
 
@@ -113,7 +112,7 @@ def fine_tune_kvsall(
     device,
     output_dir,
     batch_size=256,
-    epochs=60,
+    epochs=20,
     lr=0.001
 ):
     if val_triples is None or train_triples is None or len(val_triples) == 0 or len(train_triples) == 0:
@@ -169,25 +168,27 @@ def fine_tune_kvsall(
         param_groups.append({"params": model.q_coefficients.parameters(), "lr": lr * 5.0})
     optimizer = torch.optim.Adam(param_groups, weight_decay=0.0)
     
-
     sample_new_triples = False
+    def get_sample_size(data, ratio=0.2):
+        return max(1, int(len(data) * ratio))
     
-    sample_size = min(len(triples_batch), 60000)
+    sample_size = get_sample_size(triples_batch)
 
     encoded_triples = sample_encoded_triples(triples_batch, entity_to_idx, relation_to_idx, sample_size=sample_size)
     for epoch in range(epochs):
-        if epoch < 20:
+        if epoch < 10:
             current_batch = batch_1
-        elif epoch < 40:
+        elif epoch < 20:
             current_batch = batch_2
         else:
             current_batch = batch_3
-        if epoch==20:
+        if epoch==10:
             sample_new_triples=True
-        elif epoch==40:
+        elif epoch==20:
             sample_new_triples=True
         if sample_new_triples:
-            encoded_triples = sample_encoded_triples(current_batch, entity_to_idx, relation_to_idx, sample_size=60000)
+            sample_size = get_sample_size(current_batch)
+            encoded_triples = sample_encoded_triples(current_batch, entity_to_idx, relation_to_idx, sample_size=sample_size)
             sample_new_triples=False
 
 
@@ -198,31 +199,26 @@ def fine_tune_kvsall(
             batch = encoded_triples[i:i+batch_size]
             batch_tensor = torch.tensor(batch, dtype=torch.long, device=device)  # [B, 3]
 
-            # produces real-valued scores (logits) for various entities. These continuous scores are akin to what a "belief function" (bθ) might output, representing the model's confidence or degree of belief for each entity
             scores = model.forward_k_vs_all(batch_tensor)  # [B, num_entities]
 
             B, N = scores.shape
             rows = torch.arange(B, device=device)
             true_tails = batch_tensor[:, 2]
-            k = 50  # or 100
+            k = 50 
 
-            # pick top-k hard negatives per row (exclude true tail)
             with torch.no_grad():
                 s = scores.detach().clone()
                 s[rows, true_tails] = float('-inf')
-                hard_negs = torch.topk(s, k, dim=1).indices  # [B, k]
+                hard_negs = torch.topk(s, k, dim=1).indices  
 
-            # gather logits for positive + k negatives -> [B, k+1]
-            pos = scores[rows, true_tails].unsqueeze(1)  # [B, 1]
-            negs = scores.gather(1, hard_negs)           # [B, k]
-            logits = torch.cat([pos, negs], dim=1)       # [B, k+1]
+            pos = scores[rows, true_tails].unsqueeze(1)  
+            negs = scores.gather(1, hard_negs)           
+            logits = torch.cat([pos, negs], dim=1)       
 
             # class 0 is the positive
             targets_ce = torch.zeros(B, dtype=torch.long, device=device)
             loss = F.cross_entropy(logits, targets_ce)
-
-       
-            #  Confirm loss is connected to model
+            
             assert loss.requires_grad, "Loss has no grad — check model/scoring logic!"
 
             optimizer.zero_grad()
@@ -259,32 +255,24 @@ def fine_tune_kvsall(
 
         with open(os.path.join(fine_tune_folder, "relation_to_idx.p"), "wb") as f:
             pickle.dump(relation_to_idx, f)
-            
-            
-        train_triples_1000 = train_triples[:3000]
 
-        train_er_vocab_1000 = get_er_vocab(train_triples_1000)
-        train_re_vocab_1000 = get_re_vocab(train_triples_1000)
+        train_er_vocab = get_er_vocab(train_triples)
+        train_re_vocab = get_re_vocab(train_triples)
                     
-                
         train_er_vocab = get_er_vocab(train_triples)
         train_re_vocab = get_re_vocab(train_triples)
             
-        val_triples_1000 = val_triples[:3000]
+        val_er_vocab = get_er_vocab(val_triples)
+        val_re_vocab = get_re_vocab(val_triples)
 
-        val_er_vocab_1000 = get_er_vocab(val_triples_1000)
-        val_re_vocab_1000 = get_re_vocab(val_triples_1000)
-
-                
-       
         # Load the final model
         finetuned_model = KGE(path= fine_tune_folder)
     
         # Evaluate only on the 1000 triples
-        train_metrics = evaluate_link_prediction_performance(finetuned_model, train_triples_1000, train_er_vocab_1000, train_re_vocab_1000)
+        train_metrics = evaluate_link_prediction_performance(finetuned_model, train_triples, train_er_vocab, train_re_vocab)
         print(f" Finetuned Model Performance on first 1000 triples train set:\n{train_metrics}")
 
-        val_metrics = evaluate_link_prediction_performance(finetuned_model, val_triples_1000, val_er_vocab_1000, val_re_vocab_1000)
+        val_metrics = evaluate_link_prediction_performance(finetuned_model, val_triples, val_er_vocab, val_re_vocab)
 
         # capture q coefficient(s)
         if hasattr(model, "q_coefficients"):
