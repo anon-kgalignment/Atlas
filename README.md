@@ -27,41 +27,6 @@ ASTRA follows a different paradigm:
 
 ---
 
-#  Approach Overview
-
-ASTRA consists of **three main components**:
-
----
-
-##  Structural Encoding (R-GCN)
-
-- Builds a merged graph from both KGs  
-- Propagates relational information  
-
-✔ Adds structural context  
-✔ No retraining of KGE  
-
----
-
-##  Adaptive Fusion
-
-- Combines:
-  - Original embeddings  
-  - Structural embeddings  
-
-✔ Learns how much structural information to use per entity  
-
----
-
-##  Alignment Network
-
-- Projects embeddings into a shared space  
-- Uses a **non-linear transformation with residual connection**  
-
-✔ Handles non-linear differences between KGs  
-
----
-
 # Pipeline Overview
 
 ```text
@@ -81,9 +46,7 @@ ASTRA consists of **three main components**:
 
 ## Code and Data
 
-### Embeddings
-
-Embeddings must be trained beforehand using the **DICE Embedding Framework**.
+Embeddings: Trained using the [DICE Embedding Framework](https://github.com/dice-group/dice-embeddings)
 
 Each embedding directory should contain:
 
@@ -94,16 +57,10 @@ relation_to_idx.p
 configuration.json
 ```
 
----
+Datasets:
+[OpenEA benchmark](https://www.dropbox.com/scl/fi/lo69wjm1f37qiik59kmg8/OpenEA_dataset_v1.1.zip)
+[Zenodo – DBpedia-Wikidata](https://zenodo.org/records/7566020)
 
-###  Datasets
-
-Supported datasets include:
-
-* OpenEA benchmark datasets (EN–FR, EN–DE)
-* DBpedia–Wikidata
-
----
 
 ### Required Files
 
